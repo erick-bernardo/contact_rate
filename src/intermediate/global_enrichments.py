@@ -293,11 +293,11 @@ def add_tipo_contato(df: pd.DataFrame) -> pd.DataFrame:
 # =====================================================
 
 def apply_global_enrichments(
-    client_contacts: pd.DataFrame,
+    contacts: pd.DataFrame,
     vendas_stg: pd.DataFrame
 ) -> pd.DataFrame:
 
-    df = client_contacts.copy()
+    df = contacts.copy()
 
     df = join_sales_data(df, vendas_stg)
 
