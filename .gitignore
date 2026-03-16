@@ -1,0 +1,8 @@
+# Ignorar arquivos de dados
+data/
+*.csv
+*.xlsx
+*.parquet
+
+# Ignorar variáveis de ambiente e credenciais
+.env
