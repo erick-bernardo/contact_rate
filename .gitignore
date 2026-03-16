@@ -1,8 +1,8 @@
-# Ignorar arquivos de dados
-data/
-*.csv
-*.xlsx
-*.parquet
+# Ignora tudo dentro da pasta data
+data/*
+
+# Exceção (!): Não ignora o arquivo .gitkeep
+!data/.gitkeep
 
 # Ignorar variáveis de ambiente e credenciais
 .env
