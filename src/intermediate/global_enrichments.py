@@ -241,6 +241,9 @@ def add_jornada_atendimento(df: pd.DataFrame) -> pd.DataFrame:
         .rename("jornada_atendimento")
     )
 
+    # se não houver venda (pedido inválido)
+    df.loc[~df["pedido_valido"], "jornada_atendimento"] = "indefinido"
+
     df = df.merge(jornada, on="id_pedido", how="left")
 
     return df
@@ -269,6 +272,9 @@ def add_jornada_atendimento_unica(df: pd.DataFrame) -> pd.DataFrame:
         .apply(build_unique)
         .rename("jornada_atendimento_unica")
     )
+
+    # se não houver venda (pedido inválido)
+    df.loc[~df["pedido_valido"], "jornada_atendimento_unica"] = "indefinido"
 
     df = df.merge(jornada, on="id_pedido", how="left")
 

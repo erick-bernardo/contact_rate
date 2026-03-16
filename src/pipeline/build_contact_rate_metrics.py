@@ -297,6 +297,9 @@ def build_contact_rate_metrics():
 
     )
 
+    client_contact_rate_sample = client_enriched[client_enriched["data_contato"].dt.month.isin([2, 3])].copy()
+    client_contact_rate_sample.to_excel(SAMPLE_PATH / "client_contact_rate_sample.xlsx", index=False)
+
     # ======================================================
     # BUILDING OPERATION  LAYER
     # ======================================================
@@ -400,68 +403,68 @@ def build_contact_rate_metrics():
 
     logger.info(f"Arquivo salvo: {operation_path}")
 
+    operation_contact_rate_sample = operation_enriched[operation_enriched["data_contato"].dt.month.isin([2, 3])].copy()
+    operation_contact_rate_sample.to_excel(SAMPLE_PATH / "operation_contact_rate_sample.xlsx", index=False)
+
+    # # ======================================================
+    # # GERAR MÉTRICAS BASE
+    # # ======================================================
+
+    # logger.info("Etapa 7 - Gerando métricas base")
+
+    # metric_cube_base = generate_base_metrics(
+
+    #     client_enriched
+
+    # )
+
+    # METRIC_BASE_PATH.mkdir(parents=True, exist_ok=True)
+
+    # metric_base_path = METRIC_BASE_PATH / "metric_cube_base.parquet"
+
+    # metric_cube_base.to_parquet(
+
+    #     metric_base_path,
+    #     index=False
+
+    # )
+
+    # logger.info(f"Metric cube base salvo: {metric_base_path}")
+
+    # # ======================================================
+    # # 9 MÉTRICAS FINAIS
+    # # ======================================================
+
+    # logger.info("Etapa 8 - Aplicando metric layer")
+
+    # metric_cube_final = apply_metric_layer(
+
+    #     metric_cube_base
+
+    # )
+
+    # METRIC_FINAL_PATH.mkdir(parents=True, exist_ok=True)
+
+    # metric_final_path = METRIC_FINAL_PATH / "metric_cube_final.parquet"
+
+    # metric_cube_final.to_parquet(
+
+    #     metric_final_path,
+    #     index=False
+
+    # )
+
+    # logger.info(f"Metric cube final salvo: {metric_final_path}")
 
 
 
-    # ======================================================
-    # GERAR MÉTRICAS BASE
-    # ======================================================
-
-    logger.info("Etapa 7 - Gerando métricas base")
-
-    metric_cube_base = generate_base_metrics(
-
-        client_enriched
-
-    )
-
-    METRIC_BASE_PATH.mkdir(parents=True, exist_ok=True)
-
-    metric_base_path = METRIC_BASE_PATH / "metric_cube_base.parquet"
-
-    metric_cube_base.to_parquet(
-
-        metric_base_path,
-        index=False
-
-    )
-
-    logger.info(f"Metric cube base salvo: {metric_base_path}")
-
-    # ======================================================
-    # 9 MÉTRICAS FINAIS
-    # ======================================================
-
-    logger.info("Etapa 8 - Aplicando metric layer")
-
-    metric_cube_final = apply_metric_layer(
-
-        metric_cube_base
-
-    )
-
-    METRIC_FINAL_PATH.mkdir(parents=True, exist_ok=True)
-
-    metric_final_path = METRIC_FINAL_PATH / "metric_cube_final.parquet"
-
-    metric_cube_final.to_parquet(
-
-        metric_final_path,
-        index=False
-
-    )
-
-    logger.info(f"Metric cube final salvo: {metric_final_path}")
-
-
-
-    logger.info("========================================")
-    logger.info("CONTACT RATE PIPELINE END")
-    logger.info("========================================")
+    # logger.info("========================================")
+    # logger.info("CONTACT RATE PIPELINE END")
+    # logger.info("========================================")
 
     return {
         "client_contact_rate": client_enriched,
         "operation_contact_rate": operation_enriched,
-        "metric_cube_base": metric_cube_base,
-        "metric_cube_final": metric_cube_final
+        #"metric_cube_base": metric_cube_base,
+        #"metric_cube_final": metric_cube_final
     }
