@@ -1,0 +1,306 @@
+
+DOCUMENTAÇÃO ESTRUTURAL — BASE MENSAGERIA SELLER
+================================================
+
+5.0 RESUMO DO CONTEXTO DA BASE
+------------------------------
+Domínio declarado:
+Interações entre clientes e sellers 3P em sistema de mensageria do marketplace.
+
+Finalidade estrutural:
+Padronizar registros de mensageria cliente–seller para um formato compatível
+com modelo de tickets de atendimento.
+
+Fluxo operacional descrito:
+Cliente entra em contato com o seller via mensageria.
+Essas interações não passam diretamente pelo atendimento humano.
+Quando ocorre mediação, pode ser gerado ticket na plataforma de atendimento.
+
+Escopo da documentação:
+Documentar estrutura, relações, granularidade aparente, chaves operacionais
+e limites de entendimento da query fornecida.
+
+Origem do contexto:
+- Contexto humano fornecido
+- Query SQL
+- Amostra de dados
+
+Limitações:
+- Ausência de dicionário de dados oficial
+- Estrutura completa das tabelas de origem não fornecida
+- Amostra limitada de registros
+
+
+5.1 ESTRUTURA OBSERVADA
+-----------------------
+Granularidade aparente (hipótese estrutural):
+
+Contato do cliente
+associado a
+Pedido
+associado a
+SKU do pedido
+
+Entidades observadas:
+
+lake_mensageria_seller.sessions
+Origem da interação de mensageria
+
+lake_madeira_fc.b2c_pedped
+Estrutura de pedido
+
+lake_madeira_fc.b2c_pedprd
+Itens ou SKUs do pedido
+
+
+5.2 MAPA RELACIONAL
+-------------------
+
+Relação 1
+sessions.order = pedped.id_pedped
+
+Relação 2
+pedped.id_pedped = pedprd.id_pedped
+
+Dependência estrutural observada:
+
+sessions
+   └── pedped
+         └── pedprd
+
+
+5.3 CHAVES OPERACIONAIS OBSERVADAS
+----------------------------------
+
+sessions.order
+Utilizada para associar sessão ao pedido
+
+pedped.id_pedped
+Identificador do pedido
+
+pedped.parent_pedped
+Identificador do pedido pai
+
+pedprd.id_prdprd
+Identificador do SKU do produto
+
+
+5.4 CAMPOS UTILIZADOS
+---------------------
+
+id_contato
+Derivado de sessions.order
+Confirmado igual ao id_pedido
+
+data_atendimento
+Origem: sessions.created_at
+Representa a data do contato do cliente
+
+id_pedido
+Identificador do pedido
+
+id_pedido_pai
+Identificador do pedido pai
+
+id_produto
+Identificador do SKU do produto
+
+
+Campos preenchidos com valores constantes para padronização:
+
+motivo_contato
+submotivo_contato
+email_atendente
+email_solicitante
+email_atribuido
+group_name
+origem_atendimento
+origem_informacao
+flag_reputacional
+motivo_contato_voz
+canal_atendimento
+tipo_ticket
+status_ticket
+descricao_ticket
+flag_tags
+formulario
+resolucao_cx
+
+Esses campos não existem na base de mensageria seller
+e são preenchidos para compatibilidade com o modelo
+de tickets de atendimento.
+
+
+5.5 HIPÓTESES EXPLÍCITAS
+------------------------
+
+A granularidade final da query pode ser impactada pelo
+join com itens do pedido.
+
+Caso um pedido possua múltiplos SKUs, múltiplas linhas
+podem ser geradas para um mesmo contato.
+
+
+5.6 RISCOS E PONTOS DE ATENÇÃO
+------------------------------
+
+Possível fan-out estrutural devido ao join entre
+pedido e itens do pedido.
+
+Multiplicação de registros pode ocorrer quando
+um pedido possui mais de um SKU.
+
+
+5.7 LIMITES DO ENTENDIMENTO
+---------------------------
+
+Não é possível afirmar:
+
+- Quantas sessões podem existir por pedido
+- Se existem múltiplas mensagens dentro da sessão
+- Estrutura completa das tabelas de origem
+- Se a sessão representa uma thread completa de conversa
+
+
+6.0 ID MAP — MAPA DE IDENTIFICADORES
+------------------------------------
+
+Identificadores observados:
+
+id_pedido_pai
+Identificador do pedido pai
+
+id_pedido
+Identificador do pedido
+
+id_contato
+Confirmado igual ao id_pedido
+
+id_produto
+Identificador do SKU do produto
+
+
+Hierarquia estrutural dos IDs:
+
+id_pedido_pai
+      │
+      ▼
+id_pedido
+      │
+      ├── id_contato
+      │
+      ▼
+id_produto
+
+
+Relações estruturais:
+
+Pedido Pai → Pedido
+1 : N
+
+Pedido → SKU
+1 : N
+
+Contato → Pedido
+id_contato = id_pedido
+
+
+7.0 MAPA DE GRANULARIDADE
+-------------------------
+
+Níveis estruturais observados:
+
+Pedido Pai
+Agrupador de pedidos
+
+Pedido
+Compra individual do cliente
+
+Contato
+Contato do cliente associado ao pedido
+
+SKU
+Item ou produto do pedido
+
+
+Hierarquia estrutural:
+
+Pedido Pai
+   │
+   └── Pedido
+          │
+          └── SKU
+
+
+Granularidade aparente da saída:
+
+Contato do cliente
+        x
+SKU do pedido
+
+
+8.0 MAPA DE FAN-OUT
+-------------------
+
+Estrutura de relacionamento:
+
+sessions
+   │
+   │ (associação com pedido)
+   ▼
+pedido
+   │
+   │ 1 : N
+   ▼
+SKU do pedido
+
+
+Exemplo estrutural hipotético:
+
+1 sessão
+   │
+   ▼
+1 pedido
+   │
+   ├── SKU 1 → linha 1
+   ├── SKU 2 → linha 2
+   └── SKU 3 → linha 3
+
+
+Nesse cenário, um único contato pode gerar
+múltiplas linhas na saída da query caso o
+pedido possua múltiplos SKUs.
+
+
+8.0 QUERY
+
+
+SELECT
+    CAST(s."order" AS INT) AS id_contato,
+    s.created_at AS data_atendimento,
+    CAST(fc.id_pedped AS INT) AS id_pedido,
+    CAST(fc.parent_pedped AS INT) AS id_pedido_pai,
+    CAST(prd.id_prdprd AS INT) AS id_produto,
+    'Nova Mensageria' AS motivo_contato,
+    'Nova Mensageria' AS submotivo_contato,
+    'Nova Mensageria' AS email_atendente,
+    'Nova Mensageria' AS email_solicitante,
+    'Nova Mensageria' AS email_atribuido,
+    'Nova Mensageria' AS group_name,
+    'Nova Mensageria' AS origem_atendimento,
+    'Mensageria Seller' AS origem_informacao,
+    'Nova Mensageria' AS flag_reputacional,
+    'Nova Mensageria' AS motivo_contato_voz,
+    'Nova Mensageria' AS canal_atendimento,
+    'Nova Mensageria' AS tipo_ticket,
+    'Nova Mensageria' AS status_ticket,
+    'Nova Mensageria' AS descricao_ticket,
+    'Nova Mensageria' AS flag_tags,
+    'Nova Mensageria' AS formulario,
+    'Nova Mensageria' AS resolucao_cx
+FROM lake_mensageria_seller.sessions AS s
+    INNER JOIN lake_madeira_fc.b2c_pedped AS fc ON fc.id_pedped = s."order"
+    INNER JOIN lake_madeira_fc.b2c_pedprd AS prd ON fc.id_pedped = prd.id_pedped
+WHERE s.created_at >= '2025-04-01'
+    AND s."source" NOT IN ('marketplace')
+    AND s.seller_id NOT IN (1,8)

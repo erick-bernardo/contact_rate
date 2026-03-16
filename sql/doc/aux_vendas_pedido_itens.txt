@@ -1,0 +1,181 @@
+DOCUMENTAÇÃO ESTRUTURAL DE DADOS
+ARQUIVO: aux_vendas_pedido_itens.sql
+DATA DE GERAÇÃO: 07/02/2026
+--------------------------------------------------------------------------------
+
+5.0 RESUMO DO CONTEXTO DA BASE
+--------------------------------------------------------------------------------
+- Domínio Declarado: Vendas Detalhadas (Operacional/Analítico).
+- Finalidade Geral: Relatório granular de itens vendidos, enriquecido com dados de logística, fornecedores e datas de entrega.
+- Escopo da Documentação: Query de extração parametrizada (com placeholder).
+- Origem do Contexto: Arquivo SQL com múltiplos JOINS (Sales + Brain + Produto).
+- Limitações: A query contém uma variável de injeção `{where_condition...}` que indica dependência de uma aplicação externa (Python/Airflow) para rodar.
+
+5.1 ESTRUTURA OBSERVADA
+--------------------------------------------------------------------------------
+- O que cada linha representa: Um Item (SKU) dentro de um Pedido de Venda.
+- Granularidade: `id_pedido` + `id_produto` (Item único).
+- Entidades Principais: Pedido, Produto, Seller/Fornecedor, Transportadora.
+- Entidades Auxiliares: Faturamento (Nota Fiscal), Logística.
+
+5.2 MAPA RELACIONAL
+--------------------------------------------------------------------------------
+- Tabela Fonte (Driver): `looker_plan.looker_sales` (alias `s`).
+- Estrutura de Joins (Todos LEFT JOIN - Preserva a tabela sales):
+  1. `lake_brain.portal_pedido_venda` (`ppv`): Cabeçalho do pedido no sistema transacional.
+  2. `lake_produto.dim_produto_cadastro` (`dp`): Dimensão de produtos e sellers.
+  3. `lake_brain.portal_item_pedido_venda` (`pipv`): Detalhe do item transacional.
+  4. `lake_brain.portal_item_faturamento` (`pif`): Item da nota fiscal.
+  5. `lake_brain.portal_faturamento` (`pf`): Cabeçalho da nota fiscal.
+  6. `lake_brain.portal_transportadora` (`pt`): Dados da transportadora.
+
+5.3 CHAVES OPERACIONAIS OBSERVADAS
+--------------------------------------------------------------------------------
+- Chave Primária Composta (Hipótese): `id_pedido` + `id_produto`.
+- Chaves de Ligação (Joins):
+  - Pedido: `s.id_pedido` = `ppv.id_pedped`
+  - Produto: `s.id_produto` = `dp.id_produto` AND `s.id_seller` = `dp.id_seller`
+  - Item: `ppv.id` = `pipv.idfk_pedido_venda` AND `pipv.codigo_sku` = `dp.id_produto`
+
+5.4 CAMPOS UTILIZADOS E TIPAGEM OBSERVADA
+--------------------------------------------------------------------------------
+| CAMPO                         | TIPO (Obs) | USO              | NOTAS ESTRUTURAIS
+| id_pedido                     | INT        | ID/Chave         | Cast explícito.
+| id_produto                    | INT        | ID/Chave         | Cast explícito.
+| nome_produto                  | STRING     | Descritivo       | Dimensão Produto.
+| categoria_produto             | STRING     | Classificação    | Origem: `categoria_nova_estrutura`.
+| empresa_venda                 | STRING     | Classificação    | Origem: Tabela Sales.
+| tipo_venda                    | STRING     | Classificação    | Origem: Tabela Sales.
+| status_pedido                 | STRING     | Status           | Origem: Tabela Sales.
+| nome_fornecedor               | STRING     | Regra Negócio    | Lógica: Se '-', usa `nome_seller`.
+| nome_transportadora           | STRING     | Logística        | Pode ser NULL (Left Join).
+| data_entrega_cliente_revisada | DATE       | Temporal         | `to_date(..., 'YYYY-MM-DD')`.
+| data_compra_cliente           | DATE       | Temporal         | Data original da compra.
+| data_entregue                 | DATE       | Temporal         | Data efetiva de entrega.
+| data_cancelamento             | DATE       | Temporal         | Data de cancelamento (se houver).
+
+5.5 HIPÓTESES EXPLÍCITAS
+--------------------------------------------------------------------------------
+1. Hierarquia de Fornecedor: A regra `CASE WHEN nome_fornecedor = '-' THEN nome_seller` sugere que o campo fornecedor nem sempre está preenchido, e o "Seller" atua como fallback de identificação da origem.
+2. Integridade Referencial: O uso extensivo de `LEFT JOIN` assume que a tabela `looker_sales` é a fonte da verdade analítica, mesmo que falte correspondência no sistema transacional (`lake_brain`) ou de faturamento.
+3. Parametrização Externa: O trecho `WHERE s.id_pedido IN {where_condition...}` indica que esta query não roda sozinha; ela espera receber uma lista de IDs de um script pai.
+
+5.6 RISCOS E PONTOS DE ATENÇÃO
+--------------------------------------------------------------------------------
+- Explosão de Linhas (Fan-out): Se um item de pedido tiver fracionamento de entrega (múltiplas notas fiscais para o mesmo SKU no mesmo pedido), o join com `portal_item_faturamento` pode duplicar as linhas de venda.
+- Performance: Muitos joins em tabelas transacionais grandes (`portal_item_pedido_venda`, `portal_item_faturamento`) podem ser pesados se a lista de IDs injetada no WHERE for muito grande.
+- Tipagem de Data: O uso de `TO_DATE(..., 'YYYY-MM-DD')` sugere que as colunas originais podem ser strings ou timestamps que precisam de normalização forçada.
+- Dados Nulos: Como são LEFT JOINs, pedidos recentes (sem faturamento/transporte ainda) virão com colunas de logística vazias (NULL).
+
+5.7 LIMITES DO ENTENDIMENTO
+--------------------------------------------------------------------------------
+- Não visível: A lógica de negócio que popula a tabela `looker_plan.looker_sales`.
+- Não visível: Como é tratada a duplicidade caso um pedido tenha "split" de faturamento (ex: 1 item faturado em 2 notas parciais). A query atual traria 2 linhas para o mesmo item.
+
+5.8 QUERY
+--------------------------------------------------------------------------------
+
+SELECT DISTINCT
+    -- =========================
+    -- Identificadores principais
+    -- Granularidade: item (SKU)
+    -- =========================
+      CAST(s.id_pedido AS INT)   AS id_pedido
+    , CAST(dp.id_produto AS INT) AS id_produto
+
+    -- =========================
+    -- Informações do produto
+    -- =========================
+    , dp.nome_produto
+    , dp.marca
+    , s.categoria_nova_estrutura AS categoria_produto
+    , s.head_categoria
+
+    -- =========================
+    -- Informações da venda
+    -- =========================
+    , s.empresa_venda
+    , s.tipo_venda
+    , s.status_pedido
+
+    -- =========================
+    -- Fornecedor / Seller
+    -- Regra:
+    --   Se nome_fornecedor = '-'
+    --     → usar nome_seller
+    --   Caso contrário → nome_fornecedor
+    -- =========================
+    , CASE
+        WHEN s.nome_fornecedor = '-'
+          THEN s.nome_seller
+        ELSE s.nome_fornecedor
+      END AS nome_fornecedor
+
+    -- =========================
+    -- Logística
+    -- =========================
+    , pt.nome AS nome_transportadora
+
+    -- =========================
+    -- Datas (cliente / entrega)
+    -- Conversão explícita para DATE
+    -- =========================
+    , TO_DATE(pipv.data_entrega_cliente, 'YYYY-MM-DD') AS data_entrega_cliente_revisada
+    , TO_DATE(ppv.data_compra_cliente,   'YYYY-MM-DD') AS data_compra_cliente
+    , TO_DATE(pipv.data_entregue,         'YYYY-MM-DD') AS data_entregue
+    , TO_DATE(pipv.data_entrega,          'YYYY-MM-DD') AS data_entrega
+    , TO_DATE(s.data_cancelamento,        'YYYY-MM-DD') AS data_cancelamento
+
+FROM looker_plan.looker_sales AS s
+
+    -- =========================
+    -- Pedido de venda (nível pedido)
+    -- =========================
+    LEFT JOIN lake_brain.portal_pedido_venda AS ppv
+           ON ppv.id_pedped = s.id_pedido
+
+    -- =========================
+    -- Dimensão de produto
+    -- Relaciona produto + seller
+    -- =========================
+    LEFT JOIN lake_produto.dim_produto_cadastro AS dp
+           ON s.id_produto = dp.id_produto
+          AND dp.id_seller = s.id_seller
+
+    -- =========================
+    -- Item do pedido de venda
+    -- Granularidade: item (SKU)
+    -- =========================
+    LEFT JOIN lake_brain.portal_item_pedido_venda AS pipv
+           ON ppv.id = pipv.idfk_pedido_venda
+          AND pipv.codigo_sku = dp.id_produto
+
+    -- =========================
+    -- Item faturado
+    -- =========================
+    LEFT JOIN lake_brain.portal_item_faturamento AS pif
+           ON pif.idfk_item_pedido_venda = pipv.id
+
+    -- =========================
+    -- Faturamento
+    -- =========================
+    LEFT JOIN lake_brain.portal_faturamento AS pf
+           ON pf.id = pif.idfk_faturamento
+
+    -- =========================
+    -- Transportadora
+    -- =========================
+    LEFT JOIN lake_brain.portal_transportadora AS pt
+           ON pt.id = pf.idfk_transportadora_filial
+
+-- =========================
+-- Filtro de extração
+-- =========================
+WHERE 1=1
+     --AND TO_DATE(ppv.data_compra_cliente, 'YYYY-MM-DD') >= '2026-03-01'
+     --AND TO_DATE(ppv.data_compra_cliente, 'YYYY-MM-DD') <= '2026-03-31'
+
+-- Caso necessário filtrar por data ao invés de id_pedido
+    AND TO_DATE(ppv.data_compra_cliente, 'YYYY-MM-DD') >= DATEADD(week,-6, DATE_TRUNC('week', GETDATE()))
+    AND TO_DATE(ppv.data_compra_cliente, 'YYYY-MM-DD') <  DATE_TRUNC('week', GETDATE())
+    

@@ -1,0 +1,210 @@
+DOCUMENTAÇÃO ESTRUTURAL DE DADOS
+ARQUIVO: bot_mkt_ticket_gold.sql
+DATA DE GERAÇÃO: 07/02/2026
+--------------------------------------------------------------------------------
+
+5.0 RESUMO DO CONTEXTO DA BASE
+--------------------------------------------------------------------------------
+- Domínio Declarado: Atendimento Marketplace via Bot/Zendesk.
+- Finalidade Geral: Classificação de tickets de Marketplace para identificar atuação e retenção do bot (Ultimate).
+- Escopo da Documentação: Query de classificação baseada em tags do Zendesk.
+- Contexto Operacional: Diferente do chat web, no Marketplace *toda* interação gera um ticket imediatamente. A query visa separar o que morreu no bot ("retido") do que seguiu fluxo.
+- Limitações: Janela de tempo móvel de 12 semanas.
+
+5.1 ESTRUTURA OBSERVADA
+--------------------------------------------------------------------------------
+- O que cada linha representa: Um Ticket Zendesk (uma interação/sessão de suporte).
+- Granularidade: `ticket_id` único.
+- Entidades Principais: Ticket, Canal (Marketplace), Fluxo Bot.
+- Lógica de Construção: CTE Principal (Base) + CTEs de Tags (Flags).
+
+5.2 MAPA RELACIONAL
+--------------------------------------------------------------------------------
+- Tabela Fonte (Driver): `lake_bu_cx_analytics.zendesk_tickets_gold` (`zt`).
+- Tabela de Enriquecimento: `lake_bu_zendesk.zendesk_tags` (`ztg`).
+- Relações:
+  - Base `zt` filtra tickets elegíveis.
+  - CTE `ULTIMATE` busca tags de fluxo geral na `ztg` (INNER JOIN lógico transformado em LEFT no final).
+  - CTE `FILA_BOT` busca tags de retenção específica na `ztg`.
+
+5.3 CHAVES OPERACIONAIS OBSERVADAS
+--------------------------------------------------------------------------------
+- Chave Primária: `ticket_id` (Inteiro/String).
+- Chave Temporal: `created_at`.
+- Filtro de Canal: Lista fechada (Cnova, Shopee, Magalu, Mercado Livre).
+
+5.4 CAMPOS UTILIZADOS E TIPAGEM OBSERVADA
+--------------------------------------------------------------------------------
+| CAMPO                | TIPO (Obs) | USO              | NOTAS ESTRUTURAIS
+| ticket_id            | INT/STRING | ID/Chave         | Identificador único.
+| created_at           | TIMESTAMP  | Temporal         | Data de criação do ticket.
+| created_week         | STRING     | Derivação        | Formato 'IYYY-IW' (Ano-Semana ISO).
+| created_month        | STRING     | Derivação        | Formato 'YYYY-MM'.
+| tipo_ticket          | STRING     | Classificação    | Incident, Question, etc.
+| status_ticket        | STRING     | Status           | Open, Pending, Solved, Closed.
+| canal_atendimento    | STRING     | Filtro/Dimensão  | Restrito a portais de Mktplace.
+| retido_bot           | STRING     | Flag (Sim/Não)   | Regra: Possui tag 'fila_bot'.
+| fluxo_ultimate       | STRING     | Flag (Sim/Não)   | Regra: Tags '%ultimate%', 'fila_bot', 'fila_humano'.
+| motivo_principal     | STRING     | Classificação    | Motivo do contato.
+| submotivo_principal  | STRING     | Classificação    | Detalhe do motivo.
+| status_pedido        | STRING     | Contexto         | Status do pedido associado.
+| pedido_filho         | INT/STRING | Identificador    | Link transacional.
+
+5.5 HIPÓTESES EXPLÍCITAS
+--------------------------------------------------------------------------------
+1. Definição de Retenção: A query assume estritamente que a presença da tag `fila_bot` equivale a um atendimento finalizado sem humano.
+2. Definição de Fluxo Ultimate: A tag `ultimate` (wildcard) ou as tags de fila indicam que o motor do bot processou algo, mesmo que tenha transbordo.
+3. Integridade de Tags: Assume-se que o processo de "tagging" no Zendesk ocorre em tempo real ou antes da ingestão no Lake, garantindo que `lake_bu_zendesk.zendesk_tags` esteja sincronizada com `zendesk_tickets_gold`.
+
+5.6 RISCOS E PONTOS DE ATENÇÃO
+--------------------------------------------------------------------------------
+- Dependência de Tags (Frágil): A lógica baseia-se em strings dentro de um array de tags (`LIKE '%ultimate%'`). Se a equipe de operação mudar a nomenclatura das tags, a métrica de `fluxo_ultimate` zera silenciosamente.
+- Hardcoding de Canais: A lista de canais no `WHERE` é estática. Novos marketplaces não aparecerão automaticamente.
+- Volume de Dados: Como "todo ticket é uma interação", o volume de linhas pode ser muito superior ao de chats web tradicionais.
+- Janela Móvel: O filtro `DATEADD(week, -12...)` impede análises de tendências anuais (YoY) usando apenas esta query.
+
+5.7 LIMITES DO ENTENDIMENTO
+--------------------------------------------------------------------------------
+- Não visível: O conteúdo da conversa ou a razão específica da retenção (apenas o motivo cadastrado no ticket).
+- Não visível: Se houve reabertura do ticket (tickets reabertos mantém o mesmo ID, mas podem ganhar novas tags, o que pode confundir a análise de "retenção" se a tag `fila_bot` persistir num ticket que depois virou humano).
+
+
+5.8 QUERY
+--------------------------------------------------------------------------------
+
+WITH
+
+-- =====================================================
+-- Base de tickets elegíveis (janela + canal)
+-- Reduz o volume antes de consultar tags
+-- =====================================================
+BASE_TICKETS AS (
+    SELECT
+        zt.ticket_id
+      , zt.created_at
+      , zt.type as tipo_ticket
+      , zt.status as status_ticket
+      , zt.due_at
+      , zt.formulario
+      , zt.via_channel
+      , zt.score_rating
+      , zt.tipo_venda as tipo_venda_zendesk
+      , zt.status_pedido
+      , zt.pedido_filho
+      , zt.pedido_pai
+      , zt.seller
+      , zt.sku_item_quantidade
+      , zt.motivo_principal
+      , zt.submotivo_principal
+      , zt.canal_atendimento
+    FROM lake_bu_cx_analytics.zendesk_tickets_gold AS zt
+    WHERE
+        zt.created_at::timestamp >= DATEADD(
+            week, -12, DATE_TRUNC('week', GETDATE())
+        )
+        AND zt.created_at::timestamp < DATE_TRUNC('week', GETDATE())
+        AND zt.canal_atendimento IN (
+            'Portal da Cnova',
+            'Portal da Shopee',
+            'Portal do Magazine Luiza',
+            'Portal do Mercado Livre Mediação',
+            'Portal do Mercado Livre Mensageria'
+        )
+)
+
+-- =====================================================
+-- Tags Ultimate
+-- Regra: qualquer tag relacionada ao fluxo de atendimento que passou pelo BOT
+-- =====================================================
+, ULTIMATE AS (
+    SELECT DISTINCT
+        ztg.ticket_id
+    FROM lake_bu_zendesk.zendesk_tags AS ztg
+    INNER JOIN BASE_TICKETS bt
+        ON bt.ticket_id = ztg.ticket_id
+    WHERE
+           ztg.tags LIKE '%ultimate%'
+        OR ztg.tags IN (
+            'fila_bot',
+            'fila_humano'
+        )
+)
+
+-- =====================================================
+-- Tags Fila Bot: identifica atendimentos retidos pelo BOT de mkt
+-- =====================================================
+, FILA_BOT AS (
+    SELECT DISTINCT
+        ztg.ticket_id
+    FROM lake_bu_zendesk.zendesk_tags AS ztg
+    INNER JOIN BASE_TICKETS bt
+        ON bt.ticket_id = ztg.ticket_id
+    WHERE
+        ztg.tags = 'fila_bot'
+)
+
+-- =====================================================
+-- SELECT FINAL
+-- =====================================================
+SELECT
+    -- =========================
+    -- Identificação
+    -- =========================
+      bt.ticket_id
+    , bt.created_at
+
+    -- =========================
+    -- Dimensões temporais
+    -- =========================
+    , TO_CHAR(
+        DATE_TRUNC('week', bt.created_at::timestamp),
+        'IYYY-IW'
+      ) AS created_week
+
+    , TO_CHAR(
+        DATE_TRUNC('month', bt.created_at::timestamp),
+        'YYYY-MM'
+      ) AS created_month
+
+    -- =========================
+    -- Atributos do ticket
+    -- =========================
+    , bt.tipo_ticket
+    , bt.status_ticket
+    , bt.due_at
+    , bt.formulario
+    , bt.via_channel
+    , bt.score_rating
+    , bt.tipo_venda_zendesk
+    , bt.status_pedido
+    , bt.pedido_filho
+    , bt.pedido_pai
+    , bt.seller
+    , bt.sku_item_quantidade
+    , bt.motivo_principal
+    , bt.submotivo_principal
+    , bt.canal_atendimento
+
+    -- =========================
+    -- Flags de fluxo bot
+    -- =========================
+    , CASE
+        WHEN fb.ticket_id IS NOT NULL THEN 'sim'
+        ELSE 'não'
+      END AS retido_bot
+
+    , CASE
+        WHEN ult.ticket_id IS NOT NULL THEN 'sim'
+        ELSE 'não'
+      END AS fluxo_ultimate
+
+FROM BASE_TICKETS bt
+
+LEFT JOIN ULTIMATE ult
+       ON bt.ticket_id = ult.ticket_id
+
+LEFT JOIN FILA_BOT fb
+       ON bt.ticket_id = fb.ticket_id
+LIMIT 5000      
+
+

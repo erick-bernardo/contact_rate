@@ -1,0 +1,237 @@
+5.0 Resumo do Contexto da Base
+Domínio declarado:
+Base de atendimento de tickets da plataforma Zendesk.
+
+Finalidade geral:
+Representação de tickets de atendimento com algumas flags derivadas de tags e exclusões baseadas em tags específicas.
+
+Escopo da documentação:
+Documentação estrutural da query fornecida, incluindo tabelas utilizadas, campos selecionados, relações aparentes, granularidade observada e transformações estruturais aplicadas.
+
+Origem do contexto:
+Informado pelo humano.
+
+Limitações do contexto:
+- Não há dicionário de dados das tabelas de origem.
+- Tipagem explícita não foi fornecida na query.
+- Não há amostras completas das tabelas além do artefato SQL.
+
+
+5.1 Estrutura Observada
+
+Hipótese sobre o que cada linha representa:
+Cada linha aparenta representar um ticket único da base Zendesk, identificado por ticket_id.
+
+Granularidade aparente:
+Granularidade por ticket_id.
+
+Entidades principais:
+- zendesk_tickets_gold (aparente tabela principal de tickets)
+
+Entidades auxiliares:
+- zendesk_tags (tabela contendo múltiplas tags associadas a tickets)
+
+
+5.2 Mapa Relacional
+
+Tabelas envolvidas:
+- lake_bu_cx_analytics.zendesk_tickets_gold
+- lake_bu_zendesk.zendesk_tags
+
+Relações observadas:
+tickets_base.ticket_id = zendesk_tags.ticket_id
+
+Tipos de join observados:
+- INNER JOIN entre zendesk_tags e tickets_base na CTE tags_filtradas
+- LEFT JOIN entre tickets_base e tags_aggregadas na query final
+
+Dependências estruturais aparentes:
+A presença de registros na tabela zendesk_tags depende da existência de ticket_id correspondente na tabela de tickets.
+
+
+5.3 Chaves Operacionais Observadas
+
+Colunas utilizadas em JOIN:
+- ticket_id
+
+Chave simples ou composta:
+- Chave simples aparente: ticket_id
+
+Cardinalidade (hipótese):
+- zendesk_tickets_gold → 1 registro por ticket_id (hipótese)
+- zendesk_tags → múltiplos registros por ticket_id (hipótese)
+
+
+5.4 Campos Utilizados (com Tipagem Observada)
+
+ticket_id | zendesk_tickets_gold | tipo não informado | seleção | utilizado em joins
+created_at | zendesk_tickets_gold | timestamp (hipótese) | seleção e filtro
+status | zendesk_tickets_gold | string | seleção
+due_at | zendesk_tickets_gold | datetime (hipótese) | seleção
+motivo_principal | zendesk_tickets_gold | string | seleção
+submotivo_principal | zendesk_tickets_gold | string | seleção
+type | zendesk_tickets_gold | string | seleção
+formulario | zendesk_tickets_gold | string | seleção e filtro
+via_channel | zendesk_tickets_gold | string | seleção
+score_rating | zendesk_tickets_gold | numérico (hipótese) | seleção
+tipo_venda | zendesk_tickets_gold | string | seleção
+status_pedido | zendesk_tickets_gold | string | seleção
+pedido_filho | zendesk_tickets_gold | string | seleção
+pedido_pai | zendesk_tickets_gold | string | seleção
+seller | zendesk_tickets_gold | string | seleção
+sku_item_quantidade | zendesk_tickets_gold | numérico (hipótese) | seleção
+canal_atendimento | zendesk_tickets_gold | string | seleção e filtro
+pedido_marketplace | zendesk_tickets_gold | boolean ou string (hipótese) | seleção
+brand_id | zendesk_tickets_gold | numérico (hipótese) | seleção
+pedido_canal_reputacional | zendesk_tickets_gold | string | seleção
+
+tags | zendesk_tags | string | utilizado em filtros e lógica condicional
+
+flag_tag_fila_bot | derivado | string | agregação condicional
+tag_pcid | derivado | string | agregação condicional
+retido_bot_mkt | derivado | string | agregação condicional
+flag_exclusao | derivado | inteiro | agregação condicional e filtro final
+
+
+5.5 Hipóteses Explícitas
+
+- Hipótese: zendesk_tickets_gold contém uma linha por ticket.
+- Hipótese: zendesk_tags contém múltiplas linhas por ticket, uma por tag.
+- Suposição: campos de data utilizam tipos timestamp ou datetime.
+- Requer validação humana: cardinalidade real entre tickets e tags.
+
+
+5.6 Riscos e Pontos de Atenção
+
+- Possível fan-out devido à relação potencialmente 1:N entre tickets e tags.
+- Possível colapso de granularidade durante agregação de tags por ticket_id.
+- Filtros por created_at podem remover histórico fora da janela de 12 semanas.
+- Exclusão baseada em tags específicas pode alterar o conjunto final de tickets analisados.
+
+
+5.7 Limites do Entendimento
+
+- Não é possível afirmar a definição semântica das colunas.
+- Não é possível afirmar se ticket_id é chave primária real da tabela.
+- Não é possível validar se as regras de exclusão representam regras de negócio oficiais.
+- Não há confirmação da tipagem real das colunas.
+
+5.8 QUERY
+
+WITH tickets_base AS (
+
+    SELECT
+        zt.ticket_id
+      , zt.created_at
+      , zt.status as status_ticket
+      , zt.due_at
+      , zt.motivo_principal
+      , zt.submotivo_principal
+      , zt.type as tipo_ticket
+      , zt.formulario
+      , zt.via_channel
+      , zt.score_rating
+      , zt.tipo_venda as tipo_venda_zendesk
+      , zt.status_pedido
+      , zt.pedido_filho
+      , zt.pedido_pai
+      , zt.seller
+      , zt.sku_item_quantidade
+      , zt.canal_atendimento
+      , zt.pedido_marketplace
+      , zt.brand_id
+      , zt.pedido_canal_reputacional
+    FROM lake_bu_cx_analytics.zendesk_tickets_gold zt
+    WHERE 1=1
+        AND zt.canal_atendimento NOT IN ('Times internos MM', 'Rotinas e Automações')
+        AND zt.formulario <> 'TDV'
+        AND zt.created_at::timestamp >= DATEADD(week,-12, DATE_TRUNC('week',GETDATE()))
+        AND zt.created_at::timestamp < DATE_TRUNC('week',GETDATE())
+
+)
+
+-- lê tags apenas dos tickets relevantes
+, tags_filtradas AS (
+
+    SELECT
+        ztags.ticket_id
+      , ztags.tags
+    FROM lake_bu_zendesk.zendesk_tags ztags
+    JOIN tickets_base tb
+        ON tb.ticket_id = ztags.ticket_id
+
+)
+
+-- agrega tudo em uma única passagem
+, tags_aggregadas AS (
+
+    SELECT
+        tf.ticket_id
+
+        , MAX(
+            CASE 
+                WHEN tf.tags LIKE 'fila_bot%' 
+                THEN 'Y'
+                ELSE 'N'
+            END
+        ) AS flag_tag_fila_bot
+
+        , MAX(
+            CASE 
+                WHEN tf.tags LIKE 'ultimate_pcid%' 
+                THEN tf.tags
+            END
+        ) AS tag_pcid
+
+        , MAX(
+            CASE 
+                WHEN tf.tags LIKE '%fila_bot%'
+                 AND tf.tags NOT LIKE '%ticket_resolvido_mediacao_tags%'
+                 AND tf.tags NOT LIKE '%conciex_mkt_no_ticket_found%'
+                THEN 'Sim'
+                ELSE 'Não'
+            END
+        ) AS retido_bot_mkt
+
+        , MAX(
+            CASE 
+                WHEN tf.tags IN (
+                    'tag_legado_meli',
+                    'importado_legado',
+                    'importado_automatico',
+                    'whatapp_ativo_cx',
+                    'envio_template_disparo_cross_imper',
+                    'envio_template_disparo_cross_montagem',
+                    'envio_disparo_ativo_especialista_suporte_assistencia',
+                    'envio_template_disparo_ativo_pendencia_pj',
+                    'envio_disparo_ativo_especialista_suporte_marketplace',
+                    'envio_dsiparo_ativo_especialista_relacionamento',
+                    'envio_disparo_ativo_especialista_reputacionais',
+                    'envio_template_disparo_ativoocorrencia_de_coleta',
+                    '55pbx_type_ativo',
+                    'agradecimento_marketplace'
+                )
+                THEN 1
+                ELSE 0
+            END
+        ) AS flag_exclusao
+
+    FROM tags_filtradas tf
+    GROUP BY 1
+
+)
+
+SELECT
+    tb.*
+  , COALESCE(ta.flag_tag_fila_bot,'N') AS flag_tag_fila_bot
+  , ta.tag_pcid
+  , COALESCE(ta.retido_bot_mkt,'Não') AS retido_bot_mkt
+
+FROM tickets_base tb
+LEFT JOIN tags_aggregadas ta
+    ON tb.ticket_id = ta.ticket_id
+
+WHERE COALESCE(ta.flag_exclusao,0) = 0
+
+LIMIT 50;
+
