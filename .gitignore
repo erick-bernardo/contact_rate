@@ -6,3 +6,6 @@ data/
 
 # Ignorar variáveis de ambiente e credenciais
 .env
+
+# Arquivos de validação do notebooks
+notebooks/
