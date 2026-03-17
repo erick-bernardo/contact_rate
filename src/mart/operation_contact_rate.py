@@ -17,9 +17,13 @@ def build_operation_layer(
     # Utilizamos .astype(str).str.lower() == 'não' para garantir que pegará
     # variações como 'Não', 'não' ou 'NÃO'. Adapte se o seu dado for booleano (False).
     
-    mkt_filtered = zendesk_marketplace[zendesk_marketplace['retido_bot'].astype(str).str.lower() == 'não'].copy()
-    others_filtered = zendesk_others[zendesk_others['retido_bot'].astype(str).str.lower() == 'não'].copy()
-    wpp_filtered = zendesk_whatsapp[zendesk_whatsapp['retido_bot'].astype(str).str.lower() == 'não'].copy()
+    #mkt_filtered = zendesk_marketplace[zendesk_marketplace['retido_bot'].astype(str).str.lower() == 'não'].copy()
+    #others_filtered = zendesk_others[zendesk_others['retido_bot'].astype(str).str.lower() == 'não'].copy()
+    #wpp_filtered = zendesk_whatsapp[zendesk_whatsapp['retido_bot'].astype(str).str.lower() == 'não'].copy()
+
+    mkt_filtered = zendesk_marketplace[zendesk_marketplace['retido_bot'].astype(str).str.lower().isin(['não', 'não passou pelo bot'])].copy()
+    others_filtered = zendesk_others[zendesk_others['retido_bot'].astype(str).str.lower().isin(['não', 'não passou pelo bot'])].copy()
+    wpp_filtered = zendesk_whatsapp[zendesk_whatsapp['retido_bot'].astype(str).str.lower().isin(['não', 'não passou pelo bot'])].copy()
 
     # =========================
     # Alinhamento de schema

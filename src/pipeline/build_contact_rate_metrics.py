@@ -327,6 +327,8 @@ def build_contact_rate_metrics():
         vendas_stg
     )
 
+    operation_enriched = operation_enriched[operation_enriched['flag_recontato_24h'] == 'não']
+
     logger.info(f"Operation enriched: {len(operation_enriched)} linhas")
 
     # =====================================================

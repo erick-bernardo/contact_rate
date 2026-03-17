@@ -21,7 +21,7 @@ def update_metric_cube(
     Returns
     -------
     metric_cube_base atualizado
-    """
+    """s
 
     # =====================================================
     # 1️⃣ GERAR NOVO CUBO PARA JANELA INCREMENTAL

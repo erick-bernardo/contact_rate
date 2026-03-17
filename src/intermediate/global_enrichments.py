@@ -32,17 +32,23 @@ def add_time_features(df: pd.DataFrame) -> pd.DataFrame:
 
     df["hora_contato"] = df["data_contato"].dt.hour
     df["dia_contato"] = df["data_contato"].dt.day
-    df["mes_contato"] = df["data_contato"].dt.month
+    df["mes_contato"] = df["data_contato"].dt.strftime("%Y-%m")
     df["ano_contato"] = df["data_contato"].dt.year
 
-    df["semana_contato"] = (
-        df["data_contato"]
-        .dt.isocalendar()
-        .week
-    )
+    df["semana_contato"] = df["data_contato"].dt.strftime("%G-W%V")
 
-    df["dia_semana"] = df["data_contato"].dt.dayofweek
+    dias_map = {
+        0: "1-Segunda",
+        1: "2-Terça",
+        2: "3-Quarta",
+        3: "4-Quinta",
+        4: "5-Sexta",
+        5: "6-Sábado",
+        6: "7-Domingo"
+    }
 
+    df["dia_semana"] = df["data_contato"].dt.dayofweek.map(dias_map)
+    
     return df
 
 
@@ -164,14 +170,13 @@ def add_recontact_features(df: pd.DataFrame) -> pd.DataFrame:
 
     cols_indef = [
         "flag_recontato",
-        "dias_recontato",
-        "tempo_ate_recontato_horas",
         "range_recontato",
         "flag_recontato_24h",
         "origem_recontato",
         "canal_recontato"
     ]
 
+    df[cols_indef] = df[cols_indef].astype(object)
     df.loc[invalid_mask, cols_indef] = "indefinido"
 
     df = df.drop(columns=["next_data_contato"])
@@ -240,10 +245,7 @@ def add_jornada_atendimento(df: pd.DataFrame) -> pd.DataFrame:
         .apply(lambda x: " > ".join(x.astype(str)))
         .rename("jornada_atendimento")
     )
-
-    # se não houver venda (pedido inválido)
-    df.loc[~df["pedido_valido"], "jornada_atendimento"] = "indefinido"
-
+  
     df = df.merge(jornada, on="id_pedido", how="left")
 
     return df
@@ -273,9 +275,7 @@ def add_jornada_atendimento_unica(df: pd.DataFrame) -> pd.DataFrame:
         .rename("jornada_atendimento_unica")
     )
 
-    # se não houver venda (pedido inválido)
-    df.loc[~df["pedido_valido"], "jornada_atendimento_unica"] = "indefinido"
-
+ 
     df = df.merge(jornada, on="id_pedido", how="left")
 
     return df
