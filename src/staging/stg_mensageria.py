@@ -89,16 +89,28 @@ def stg_mensageria(df: pd.DataFrame) -> pd.DataFrame:
         df["data_contato"],
         errors="coerce"
     )
+    df["id_pedido_pai"] = (
+        df["id_pedido_pai"]
+        .astype("string")
+        .str.strip()
+    )
 
-    df["id_pedido_pai"] = pd.to_numeric(
-        df["id_pedido_pai"],
-        errors="coerce"
-    ).astype("Int64")
+    df["id_pedido"] = (
+        df["id_pedido"]
+        .astype("string")
+        .str.strip()
+    )
 
-    df["id_pedido"] = pd.to_numeric(
-        df["id_pedido"],
-        errors="coerce"
-    ).astype("Int64")
+
+    # df["id_pedido_pai"] = pd.to_numeric(
+    #     df["id_pedido_pai"],
+    #     errors="coerce"
+    # ).astype("Int64")
+
+    # df["id_pedido"] = pd.to_numeric(
+    #     df["id_pedido"],
+    #     errors="coerce"
+    # ).astype("Int64")
 
     # =========================
     # Padronização de strings

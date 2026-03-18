@@ -46,6 +46,10 @@ def build_summary_monthly_table(df_agrouped_client: pd.DataFrame) -> pd.DataFram
         ("tipo_venda = null", "Não mapeado"): calc_mes(df['tipo_venda'] == 'null'),
         ("tipo_venda = null e retido_bot = sim", "Retido"): calc_mes((df['tipo_venda'] == 'null') & (df['retido_bot'] == 'sim')),
         ("tipo_venda = null e retido_bot = não", "Não retido"): calc_mes((df['tipo_venda'] == 'null') & (df['retido_bot'] == 'não')),
+
+        # VOLUME RECONTATO
+         ("recontato", "Recontato"): calc_mes(df['flag_recontato'] == 'sim'),
+
     }
 
     # Transforma o dicionário em DataFrame e transpõe (.T)

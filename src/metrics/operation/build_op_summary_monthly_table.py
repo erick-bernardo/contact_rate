@@ -32,6 +32,10 @@ def build_op_summary_monthly_table(df_agrouped_operation: pd.DataFrame) -> pd.Da
 
         # NÃO MAPEADO
         ("tipo_venda = null e retido_bot = não", "Não mapeado"): calc_mes((df['tipo_venda'] == 'null')),
+
+        # VOLUME RECONTATO
+        ("recontato", "Recontato"): calc_mes(df['flag_recontato'] == 'sim'),
+
     }
 
     # Transforma o dicionário em DataFrame e transpõe (.T)

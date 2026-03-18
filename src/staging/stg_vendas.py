@@ -27,10 +27,11 @@ def stg_vendas(df: pd.DataFrame) -> pd.DataFrame:
     # Tratamento de tipos
     # =========================
 
-    df["id_pedido"] = pd.to_numeric(
-        df["id_pedido"],
-        errors="coerce"
-    ).astype("Int64")
+    df["id_pedido"] = (
+        df["id_pedido"]
+        .astype("string")
+        .str.strip()
+    )
 
     date_cols = [
         "data_compra_cliente",
