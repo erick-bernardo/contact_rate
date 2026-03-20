@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 
 # =====================================================
@@ -238,15 +239,22 @@ def add_grupo_venda(df: pd.DataFrame) -> pd.DataFrame:
 
 def add_jornada_atendimento(df: pd.DataFrame) -> pd.DataFrame:
 
-    df = df.sort_values(["id_pedido", "data_contato"])
+    import numpy as np
 
-    jornada = (
-        df.groupby("id_pedido")["formulario"]
-        .apply(lambda x: " > ".join(x.astype(str)))
-        .rename("jornada_atendimento")
+    df = df.copy()
+
+    # Lista de formulários principais
+    formularios_alvo = [
+        'entrega', 
+        'cancelamento e devolução', 
+        'produto'
+    ]
+
+    df['jornada_atendimento'] = np.where(
+        df['formulario'].astype(str).str.lower().isin(formularios_alvo),
+        df['formulario'],
+        'demais jornadas' 
     )
-  
-    df = df.merge(jornada, on="id_pedido", how="left")
 
     return df
 

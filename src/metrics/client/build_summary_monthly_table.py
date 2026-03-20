@@ -50,6 +50,20 @@ def build_summary_monthly_table(df_agrouped_client: pd.DataFrame) -> pd.DataFram
         # VOLUME RECONTATO
          ("recontato", "Recontato"): calc_mes(df['flag_recontato'] == 'sim'),
 
+        # JORNADA 1P 
+        ("1p ", "entrega"): calc_mes((df['tipo_venda'] == '1p') & (df['jornada_atendimento'] == 'entrega')),
+        ("1p ", "cancelamento e devolução"): calc_mes((df['tipo_venda'] == '1p') & (df['jornada_atendimento'] == 'cancelamento e devolução')),
+        ("1p ", "produto"): calc_mes((df['tipo_venda'] == '1p') & (df['jornada_atendimento'] == 'produto')),
+        ("1p ", "demais jornadas"): calc_mes((df['tipo_venda'] == '1p') & (df['jornada_atendimento'] == 'demais jornadas')),
+
+        # JORNADA 3P 
+        ("3p ", "entrega"): calc_mes((df['tipo_venda'] == '3p') & (df['jornada_atendimento'] == 'entrega')),
+        ("3p ", "cancelamento e devolução"): calc_mes((df['tipo_venda'] == '3p') & (df['jornada_atendimento'] == 'cancelamento e devolução')),
+        ("3p ", "produto"): calc_mes((df['tipo_venda'] == '3p') & (df['jornada_atendimento'] == 'produto')),
+        ("3p ", "demais jornadas"): calc_mes((df['tipo_venda'] == '3p') & (df['jornada_atendimento'] == 'demais jornadas')),
+
+
+
     }
 
     # Transforma o dicionário em DataFrame e transpõe (.T)
