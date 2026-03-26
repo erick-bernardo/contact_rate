@@ -72,7 +72,7 @@ def merge_csvs_to_weekly_parquet(
     print(f"Data Min: {df[date_column].min()} | Data Max: {df[date_column].max()}")
 
     # 4. Criação do Label da Semana 
-    week_labels = df[date_column].dt.strftime("%Y-W%W")
+    week_labels = df[date_column].dt.strftime("%G-W%V")
 
     # 5. Agrupamento e Escrita
     for label, group_df in df.groupby(week_labels):

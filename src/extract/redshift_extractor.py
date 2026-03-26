@@ -114,15 +114,9 @@ def redshift_weekly_extractor(
 
     for week_start, week_end in weeks:
 
-        label = week_start.strftime("%Y-W%U")
+        label = week_start.strftime("%G-W%V")
 
         file_path = raw_path / f"{label}.parquet"
-
-        if file_path.exists():
-
-            logger.info(f"Semana {label} já existe. Pulando.")
-
-            continue
 
         logger.info(
             f"Extraindo semana {label} | "

@@ -29,7 +29,7 @@ SELECT DISTINCT
     --   Caso contrário → nome_fornecedor
     -- =========================
     , CASE
-        WHEN s.nome_fornecedor = '-'
+        WHEN s.nome_fornecedor = '-'2025_
           THEN s.nome_seller
         ELSE s.nome_fornecedor
       END AS nome_fornecedor
@@ -44,10 +44,11 @@ SELECT DISTINCT
     -- Conversão explícita para DATE
     -- =========================
     , TO_DATE(pipv.data_entrega_cliente, 'YYYY-MM-DD') AS data_entrega_cliente_revisada
-    , TO_DATE(ppv.data_compra_cliente,   'YYYY-MM-DD') AS data_compra_cliente
+    , TO_DATE(s.data_compra_date,   'YYYY-MM-DD') AS data_compra_cliente
     , TO_DATE(pipv.data_entregue,         'YYYY-MM-DD') AS data_entregue
     , TO_DATE(pipv.data_entrega,          'YYYY-MM-DD') AS data_entrega
     , TO_DATE(s.data_cancelamento,        'YYYY-MM-DD') AS data_cancelamento
+	, s.situacao
 
 FROM looker_plan.looker_sales AS s
 
@@ -95,6 +96,5 @@ FROM looker_plan.looker_sales AS s
 -- Filtro de extração
 -- =========================
 WHERE 1=1
-       AND TO_DATE(ppv.data_compra_cliente, 'YYYY-MM-DD') >= '{start_date}'
-       AND TO_DATE(ppv.data_compra_cliente, 'YYYY-MM-DD') < '{end_date}'
-limit 10
+       AND TO_DATE(s.data_compra_date, 'YYYY-MM-DD') >= '{start_date}'
+       AND TO_DATE(s.data_compra_date, 'YYYY-MM-DD') < '{end_date}'

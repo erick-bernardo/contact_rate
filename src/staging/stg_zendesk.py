@@ -1,5 +1,5 @@
 import pandas as pd
-
+import numpy as np
 
 def stg_zendesk(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -65,8 +65,11 @@ def stg_zendesk(df: pd.DataFrame) -> pd.DataFrame:
         utc=False
     )
 
-    df["id_pedido_pai"] =  df["id_pedido_pai"].astype("string").str.strip() 
-    df["id_pedido"] =  df["id_pedido"].astype("string").str.strip() 
+    df["id_pedido_pai"] = df["id_pedido_pai"].astype("string").str.replace(r'\D+', '', regex=True).str.strip() 
+    df["id_pedido"] = df["id_pedido"].astype("string").str.replace(r'\D+', '', regex=True).str.strip()
+
+    df["id_pedido_pai"] = df["id_pedido_pai"].replace('', np.nan)
+    df["id_pedido"] = df["id_pedido"].replace('', np.nan)
 
 
     # df["id_pedido_pai"] = pd.to_numeric(
