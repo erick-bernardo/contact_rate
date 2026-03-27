@@ -44,10 +44,18 @@ SELECT DISTINCT
     -- Conversão explícita para DATE
     -- =========================
     , TO_DATE(pipv.data_entrega_cliente, 'YYYY-MM-DD') AS data_entrega_cliente_revisada
-    , TO_DATE(s.data_compra_date,   'YYYY-MM-DD') AS data_compra_cliente
-    , TO_DATE(pipv.data_entregue,         'YYYY-MM-DD') AS data_entregue
-    , TO_DATE(pipv.data_entrega,          'YYYY-MM-DD') AS data_entrega
-    , TO_DATE(s.data_cancelamento,        'YYYY-MM-DD') AS data_cancelamento
+    , TO_DATE(s.data_compra_date,'YYYY-MM-DD') AS data_compra_cliente
+    , TO_DATE(pipv.data_entregue,'YYYY-MM-DD') AS data_entregue
+    , TO_DATE(pipv.data_entrega,'YYYY-MM-DD') AS data_entrega
+    , TO_DATE(s.data_cancelamento,'YYYY-MM-DD') AS data_cancelamento
+    , TO_DATE(s.data_aprovacao,'YYYY-MM-DD') AS data_aprovacao
+    , s.data_entregue_cliente
+    , s.data_prometido_entrega_cliente
+    , s.situacao
+    , s.id_cliente
+    , s.cidade_entrega
+    , s.micro_regiao_entrega
+    , s.regiao_destino    
 
 FROM looker_plan.looker_sales AS s
 

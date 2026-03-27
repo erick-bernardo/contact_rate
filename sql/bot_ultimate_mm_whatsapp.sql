@@ -30,8 +30,8 @@ SELECT DISTINCT
   END ) AS horario_atendimento,  
   ult.conversation_end_time,
   FORMAT_DATE('%Y-%m-%d', DATE(DATETIME(TIMESTAMP(ult.conversation_end_time), "America/Sao_Paulo"))) as conversation_end_date_br, 
-  ult.order_id as id_pedido_pai,
-  ult.children_id as id_pedido_filho,
+  REGEXP_REPLACE(CAST(ult.order_id AS STRING), r'[\.,].*', '') AS id_pedido_pai,
+  REGEXP_REPLACE(CAST(ult.children_id AS STRING), r'[\.,].*', '') AS id_pedido_filho,
   --ult.conversations_data,
   ult.tma,
   ult.channel,
@@ -49,7 +49,6 @@ SELECT DISTINCT
   --ult.gpt_helped,
   ult.confidence_score,
   ult.use_case as data_use_case,
-  ult.channel,
   ult.wpp_number,
   ult.document,
   --ult.data_reason,
@@ -67,7 +66,5 @@ WHERE DATETIME(TIMESTAMP(ult.conversation_start_time), "America/Sao_Paulo")
            LOWER(ult.use_case) NOT IN ('i want to buy', 'store address')
            OR ult.use_case IS NULL
           )
-ORDER BY ult.conversation_start_time,
-         ult.conversation_id,
-         ult.platform_conversation_id
+ORDER BY ult.conversation_start_time DESC
          

@@ -69,11 +69,11 @@ OPERATION_METRIC_FINAL_SAMPLE = SAMPLE_PATH / "operation_metric_cube_final_sampl
 # =====================================================
 
 # dias no passado para atualizar RAW
-DELTA_DAYS_RAW_EXTRACTION = 21
+DELTA_DAYS_RAW_EXTRACTION = 30
 DELTA_BOOTSTRAP_DAYS_RAW_EXTRACTION = 180
 
 # dias no passado para recalcular métricas
-DELTA_DAYS_METRICS_REPROCESS = 30
+DELTA_DAYS_METRICS_REPROCESS = 14
 
 
 # =====================================================

@@ -90,13 +90,15 @@ def stg_mensageria(df: pd.DataFrame) -> pd.DataFrame:
         errors="coerce"
     )
     df["id_pedido_pai"] = (
-        df["id_pedido_pai"]
+        pd.to_numeric(df["id_pedido_pai"], errors="coerce")
+        .astype("Int64", errors="ignore")
         .astype("string")
         .str.strip()
     )
 
     df["id_pedido"] = (
-        df["id_pedido"]
+        pd.to_numeric(df["id_pedido"], errors="coerce")
+        .astype("Int64", errors="ignore")
         .astype("string")
         .str.strip()
     )

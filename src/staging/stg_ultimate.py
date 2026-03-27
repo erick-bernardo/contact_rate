@@ -108,13 +108,15 @@ def stg_ultimate(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     df["id_pedido_pai"] = (
-        df["id_pedido_pai"]
+        pd.to_numeric(df["id_pedido_pai"], errors="coerce")
+        .astype("Int64", errors="ignore")
         .astype("string")
         .str.strip()
     )
 
     df["id_pedido"] = (
-        df["id_pedido"]
+        pd.to_numeric(df["id_pedido"], errors="coerce")
+        .astype("Int64", errors="ignore")
         .astype("string")
         .str.strip()
     )
