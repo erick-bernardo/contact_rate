@@ -14,6 +14,27 @@ logger = setup_logger()
 
 
 def extract_ultimate_from_csv(bootstrap=False):
+    """
+    Extrai dados de contatos Ultimate (bot MM WhatsApp) com vendas já enriquecidas.
+    
+    Fonte: CSV export do bot Ultimate
+    Query: bot_ultimate_mm_whatsapp_v2.sql (aplicada no CSV)
+    
+    Os dados chegam aqui já com:
+    - 17 colunas de vendas (se aplicável)
+    - 8 datas de vendas parseadas
+    - IDs limpos via REGEXP_REPLACE
+    
+    Processamento:
+    - Bootstrap: Processa todos os dados históricos
+    - Normal: Processa últimos DELTA_DAYS_RAW_EXTRACTION dias + semana atual
+    
+    Salvamento: Por semana em format ISO 8601 (YYYY-Www.parquet)
+    
+    Args:
+        bootstrap (bool): Se True, processa todos os dados. 
+                         Se False, processa últimos 7 dias + semana atual.
+    """
 
     logger.info("===== EXTRAÇÃO ULTIMATE CSV START =====")
 

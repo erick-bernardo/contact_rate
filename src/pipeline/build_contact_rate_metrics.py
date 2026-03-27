@@ -219,8 +219,7 @@ def build_contact_rate_metrics():
     logger.info("Etapa 8 - Enriquecimentos globais")
 
     client_enriched = apply_global_enrichments(
-        client_contacts,
-        vendas_stg
+        client_contacts
     )
 
     logger.info(f"Client enriched: {len(client_enriched)} linhas")
@@ -323,8 +322,7 @@ def build_contact_rate_metrics():
     logger.info("Etapa 12 - Enriquecimentos globais camada de operação")
 
     operation_enriched = apply_global_enrichments(
-        operation_contacts,
-        vendas_stg
+        operation_contacts
     )
 
     operation_enriched = operation_enriched[operation_enriched['flag_recontato_24h'] == 'não']

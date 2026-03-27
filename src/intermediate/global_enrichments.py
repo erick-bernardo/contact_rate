@@ -3,23 +3,20 @@ import numpy as np
 
 
 # =====================================================
-# JOIN COM VENDAS + VALIDAÇÃO DE PEDIDO
+# VALIDAÇÃO DE PEDIDO
 # =====================================================
 
-def join_sales_data(
-    contacts: pd.DataFrame,
-    vendas: pd.DataFrame
-) -> pd.DataFrame:
-
-    df = contacts.merge(
-        vendas,
-        how="left",
-        on="id_pedido"
-    )
-
-    # pedido válido apenas quando encontrado na base de vendas
+def validate_pedido(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Validação de pedido baseado em dados já enriquecidos nas camadas de staging.
+    Os dados de vendas agora vêm pré-enriquecidos via SQL (tickets_gold_zendesk_v2, etc),
+    não mais via join em Python.
+    """
+    df = df.copy()
+    
+    # pedido válido quando id_pedido existe e data_compra_cliente está preenchida
     df["pedido_valido"] = df["data_compra_cliente"].notna()
-
+    
     return df
 
 
@@ -307,13 +304,23 @@ def add_tipo_contato(df: pd.DataFrame) -> pd.DataFrame:
 # =====================================================
 
 def apply_global_enrichments(
-    contacts: pd.DataFrame,
-    vendas_stg: pd.DataFrame
+    contacts: pd.DataFrame
 ) -> pd.DataFrame:
+    """
+    Aplica enriquecimentos globais aos contatos.
+    
+    IMPORTANTE: Os dados de vendas já vêm pré-enriquecidos nas staging layers
+    (stg_zendesk, stg_mensageria, stg_ultimate) via queries SQL:
+    - tickets_gold_zendesk_v2.sql
+    - bot_ultimate_mm_whatsapp_v2.sql
+    - vendas_base_semanal.sql
+    
+    Portanto, NÃO fazemos mais join com vendas_stg em Python.
+    """
 
     df = contacts.copy()
 
-    df = join_sales_data(df, vendas_stg)
+    df = validate_pedido(df)
 
     df = add_time_features(df)
 
